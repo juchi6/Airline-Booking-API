@@ -4,10 +4,16 @@ const apiRoutes = require("./routes");
 
 const app = express();
 
+// Middleware to parse JSON request bodies
+app.use(express.json());
+// Middleware to parse URL-encoded request bodies
+app.use(express.urlencoded({ extended: true }));
+
+
 app.use("/api", apiRoutes);
 
 app.listen(ServerConfig.PORT, () => {
   console.log(`Server is running on port ${ServerConfig.PORT}`);
-  console.log(`Hello to port ${ServerConfig.PORT}`);
-  //Logger.info("Successfully started the server", "root", {});
+  //console.log(`Hello to port ${ServerConfig.PORT}`);
+  Logger.info("Successfully started the server", "root", {});
 });
