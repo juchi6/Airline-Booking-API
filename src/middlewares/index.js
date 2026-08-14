@@ -4,4 +4,5 @@ module.exports = {
     validate: require("./validate"),
     protect: require("./protect"),
     authorize: require("./authorize"),
+    httpLogger: require("./http-logger"),
 };

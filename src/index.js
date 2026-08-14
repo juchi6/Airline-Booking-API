@@ -3,12 +3,13 @@ const helmet = require("helmet");
 const cors = require("cors");
 const { ServerConfig, Logger } = require("./config");
 const apiRoutes = require("./routes");
-const { errorHandler, notFound } = require("./middlewares");
+const { errorHandler, notFound, httpLogger } = require("./middlewares");
 
 const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: ServerConfig.CORS_ORIGIN }));
+app.use(httpLogger);
 
 // Middleware to parse JSON request bodies
 app.use(express.json());
