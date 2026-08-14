@@ -7,6 +7,9 @@ A Node.js/Express backend for a movie booking application, using MySQL via Seque
 - **Runtime:** Node.js (v22.x)
 - **Framework:** Express 5
 - **ORM:** Sequelize (MySQL via `mysql2`)
+- **Auth:** JWT (`jsonwebtoken`) + `bcryptjs` password hashing
+- **Validation:** Joi
+- **Security/ops middleware:** `helmet`, `cors`, `morgan` (piped into Winston), `express-rate-limit`
 - **Logging:** Winston (console + `app.log` file)
 - **Config:** `dotenv`
 - **Dev tooling:** `nodemon`
@@ -103,17 +106,24 @@ The `index.js` barrel-file pattern (`config`, `controllers`, `middlewares`, `ser
 
 All routes are mounted under `/api/v1`.
 
-| Method | Endpoint      | Description                          |
-|--------|---------------|---------------------------------------|
-| GET    | `/api/v1/info` | Health check — returns `{ success: true, message: "API is live" }` |
+| Method | Endpoint               | Description                                             |
+|--------|------------------------|-----------------------------------------------------------|
+| GET    | `/api/v1/info`         | Health check — returns `{ success: true, message: "API is live" }` |
+| POST   | `/api/v1/auth/register`| Register a new user                                     |
+| POST   | `/api/v1/auth/login`   | Log in, returns a JWT                                    |
+| POST   | `/api/v1/airplanes`    | Create an airplane — requires `Authorization: Bearer <token>` for an admin user |
 
 ## Environment variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `PORT`   | No       | `3000`  | Port the Express server listens on |
+| Variable         | Required | Default       | Description |
+|------------------|----------|---------------|-------------|
+| `PORT`           | No       | `3000`        | Port the Express server listens on |
+| `NODE_ENV`       | No       | `development` | Environment name |
+| `JWT_SECRET`     | Yes      | —             | Secret used to sign/verify JWTs — the server refuses to start without it |
+| `JWT_EXPIRES_IN` | No       | `1d`          | JWT expiry |
+| `CORS_ORIGIN`    | No       | `*`           | Allowed CORS origin |
 
-Database credentials are currently configured separately in `src/config/config.json` (see Setup step 3), not via `.env`.
+See `.env.example` for a template. Database credentials are configured separately in `src/config/config.json` (see Setup step 3), not via `.env`.
 
 ## Logging
 
