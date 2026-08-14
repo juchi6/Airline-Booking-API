@@ -1,7 +1,7 @@
 const express = require("express");
 const { ServerConfig, Logger } = require("./config");
 const apiRoutes = require("./routes");
-const { errorHandler } = require("./middlewares");
+const { errorHandler, notFound } = require("./middlewares");
 
 const app = express();
 
@@ -13,6 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", apiRoutes);
 
+app.use(notFound);
 app.use(errorHandler);
 
 app.listen(ServerConfig.PORT, () => {
