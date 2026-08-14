@@ -1,9 +1,12 @@
 const express = require("express");
+const helmet = require("helmet");
 const { ServerConfig, Logger } = require("./config");
 const apiRoutes = require("./routes");
 const { errorHandler, notFound } = require("./middlewares");
 
 const app = express();
+
+app.use(helmet());
 
 // Middleware to parse JSON request bodies
 app.use(express.json());
