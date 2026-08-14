@@ -5,4 +5,5 @@ module.exports = {
     protect: require("./protect"),
     authorize: require("./authorize"),
     httpLogger: require("./http-logger"),
+    RateLimiter: require("./rate-limiter"),
 };

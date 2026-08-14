@@ -3,7 +3,7 @@ const helmet = require("helmet");
 const cors = require("cors");
 const { ServerConfig, Logger } = require("./config");
 const apiRoutes = require("./routes");
-const { errorHandler, notFound, httpLogger } = require("./middlewares");
+const { errorHandler, notFound, httpLogger, RateLimiter } = require("./middlewares");
 
 const app = express();
 
@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 
-app.use("/api", apiRoutes);
+app.use("/api", RateLimiter.apiLimiter, apiRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
