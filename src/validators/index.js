@@ -3,4 +3,5 @@ module.exports = {
     ...require("./auth-validator"),
     ...require("./city-validator"),
     ...require("./airport-validator"),
+    ...require("./flight-validator"),
 };
