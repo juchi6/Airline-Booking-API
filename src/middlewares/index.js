@@ -3,4 +3,5 @@ module.exports = {
     notFound: require("./not-found"),
     validate: require("./validate"),
     protect: require("./protect"),
+    authorize: require("./authorize"),
 };
