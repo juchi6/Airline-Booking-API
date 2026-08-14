@@ -4,4 +4,5 @@ module.exports = {
     ...require("./city-validator"),
     ...require("./airport-validator"),
     ...require("./flight-validator"),
+    ...require("./booking-validator"),
 };
