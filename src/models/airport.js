@@ -11,6 +11,8 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       Airport.belongsTo(models.City, { foreignKey: 'cityId', as: 'city' });
+      Airport.hasMany(models.Flight, { foreignKey: 'departureAirportId', as: 'departingFlights' });
+      Airport.hasMany(models.Flight, { foreignKey: 'arrivalAirportId', as: 'arrivingFlights' });
     }
   }
   Airport.init({
