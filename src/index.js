@@ -1,9 +1,11 @@
 const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
+const swaggerUi = require("swagger-ui-express");
 const { ServerConfig, Logger } = require("./config");
 const apiRoutes = require("./routes");
 const { errorHandler, notFound, httpLogger, RateLimiter } = require("./middlewares");
+const swaggerSpec = require("./docs/swagger-spec");
 
 const app = express();
 
@@ -16,6 +18,16 @@ app.use(express.json());
 // Middleware to parse URL-encoded request bodies
 app.use(express.urlencoded({ extended: true }));
 
+
+app.use(
+  "/api-docs",
+  (req, res, next) => {
+    res.removeHeader("Content-Security-Policy");
+    next();
+  },
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
 
 app.use("/api", RateLimiter.apiLimiter, apiRoutes);
 
