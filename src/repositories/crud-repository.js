@@ -5,16 +5,16 @@ class CrudRespository{
         this.model = model;
     }
 
-    async create(data){
+    async create(data, options = {}){
         console.log("Currently inside repositories/crud-repository.js");
         try{
-            const response = await this.model.create(data);
+            const response = await this.model.create(data, options);
             return response;
         }catch(error){
             Logger.error("Error while creating data", "CrudRepository", error);
             throw error;
         }
-    }    
+    }
 
     async destroy(data){
         try{
