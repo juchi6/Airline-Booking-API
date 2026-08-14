@@ -1,6 +1,6 @@
-# Movie Booking Backend
+# Airline Booking API
 
-A Node.js/Express backend for a movie booking application, using MySQL via Sequelize. This project also doubles as a reusable scaffold for future Express + Sequelize APIs — see [Using this as a scaffold](#using-this-as-a-scaffold) at the bottom.
+A Node.js/Express REST API for browsing flights and booking seats — cities, airports, airplanes, flights, and transactional, concurrency-safe seat booking, backed by MySQL via Sequelize.
 
 ## Tech stack
 
@@ -9,6 +9,7 @@ A Node.js/Express backend for a movie booking application, using MySQL via Seque
 - **ORM:** Sequelize (MySQL via `mysql2`)
 - **Auth:** JWT (`jsonwebtoken`) + `bcryptjs` password hashing
 - **Validation:** Joi
+- **API docs:** OpenAPI 3.0 spec served via `swagger-ui-express`
 - **Security/ops middleware:** `helmet`, `cors`, `morgan` (piped into Winston), `express-rate-limit`
 - **Logging:** Winston (console + `app.log` file)
 - **Config:** `dotenv`
@@ -19,31 +20,41 @@ A Node.js/Express backend for a movie booking application, using MySQL via Seque
 ```
 src/
   config/
-    index.js           # re-exports ServerConfig and Logger
-    server-config.js    # loads .env, exposes PORT
-    logger-config.js    # Winston logger setup (console + app.log)
-    config.json          # Sequelize CLI config (dev/test/production DB creds) — gitignored
-  controllers/
-    index.js            # re-exports all controllers
-    info-controller.js  # example controller (GET /info health check)
-  middlewares/
-    index.js            # re-exports all middlewares (currently empty)
-  migrations/            # Sequelize migration files (empty until you run sequelize-cli)
-  models/
-    index.js             # Sequelize model loader (auto-registers every model in this folder)
+    index.js              # re-exports ServerConfig and Logger
+    server-config.js       # loads/validates .env (PORT, NODE_ENV, JWT_SECRET, JWT_EXPIRES_IN, CORS_ORIGIN)
+    logger-config.js       # Winston logger setup (console + app.log)
+    config.json             # Sequelize CLI config (dev/test/production DB creds) — gitignored
+  controllers/              # request handlers, one per resource (auth, airplane, city, airport, flight, booking, info)
+  docs/
+    swagger-spec.js         # hand-authored OpenAPI 3.0 spec served at /api-docs
+  middlewares/               # errorHandler, notFound, validate, protect, authorize, httpLogger, RateLimiter
+  migrations/                  # Sequelize migrations (Airplane, User, City, Airport, Flight, Booking)
+  models/                       # Sequelize models + associations (models/index.js auto-loads every file here)
+  repositories/                  # CrudRepository base class + one subclass per resource
   routes/
-    index.js             # mounts /v1 routes under /api
-    v1/
-      index.js           # v1 route definitions (currently mounts /info)
-  seeders/                # Sequelize seed files (empty until you run sequelize-cli)
-  services/
-    index.js              # re-exports all services (currently empty)
-  utils/
-    index.js               # re-exports shared utility functions (currently empty)
-  index.js                  # app entry point — creates the Express app and starts the server
+    index.js                     # mounts /v1 under /api
+    v1/                           # one route file per resource, mounted in v1/index.js
+  services/                        # business logic layer, one per resource
+  utils/                            # AppError, catchAsync, JWT sign/verify
+  validators/                       # Joi schemas, one file per resource, flattened into one namespace
+  index.js                          # app entry point — Express app, middleware stack, server start
 ```
 
-The `index.js` barrel-file pattern (`config`, `controllers`, `middlewares`, `services`, `utils` each have an `index.js` that re-exports everything in that folder) keeps imports short elsewhere in the app, e.g. `require("../../controllers")` instead of reaching into individual files.
+The `index.js` barrel-file pattern (`config`, `controllers`, `middlewares`, `services`, `repositories`, `utils`, `validators` each have an `index.js` that re-exports everything in that folder) keeps imports short elsewhere in the app, e.g. `require("../../controllers")` instead of reaching into individual files.
+
+## Domain model
+
+```
+City 1──* Airport 1──* Flight *──1 Airplane
+                         │
+                         *
+                       Booking *──1 User
+```
+
+- A **Flight** references an **Airplane** (which plane operates it) and two **Airports** (departure/arrival).
+- `Flight.totalSeats` is seeded from the airplane's capacity when the flight is created, then decremented per booking.
+- A **Booking** references a **Flight** and the **User** who made it. `totalCost` is always computed server-side (`flight.price * noOfSeats`) — never trusted from the client.
+- Seat booking is wrapped in a Sequelize transaction with a row lock (`SELECT ... FOR UPDATE` via `transaction.LOCK.UPDATE`) on the `Flight` row, so concurrent booking requests for the same flight can never overbook it.
 
 ## Prerequisites
 
@@ -59,18 +70,23 @@ The `index.js` barrel-file pattern (`config`, `controllers`, `middlewares`, `ser
    npm install
    ```
 
-2. **Create your `.env` file** in the project root (this file is gitignored, so it won't exist after cloning):
+2. **Create your `.env` file** in the project root (gitignored, won't exist after cloning — see `.env.example` for the template):
    ```
    PORT=3000
+   NODE_ENV=development
+   JWT_SECRET=replace_with_a_long_random_string
+   JWT_EXPIRES_IN=1d
+   CORS_ORIGIN=*
    ```
+   `JWT_SECRET` is required — the server validates env vars at startup and refuses to boot without it.
 
-3. **Configure the database.** `src/config/config.json` is gitignored (it can hold DB credentials) and won't exist after a fresh clone. Create it with your local MySQL credentials, e.g.:
+3. **Configure the database.** `src/config/config.json` is gitignored and won't exist after a fresh clone. Create it with your local MySQL credentials, e.g.:
    ```json
    {
      "development": {
        "username": "root",
        "password": null,
-       "database": "database_development",
+       "database": "Flights",
        "host": "127.0.0.1",
        "dialect": "mysql"
      },
@@ -90,28 +106,41 @@ The `index.js` barrel-file pattern (`config`, `controllers`, `middlewares`, `ser
      }
    }
    ```
-   > **Note:** There is no `.sequelizerc` in this project, so `sequelize-cli` uses its default paths (`models`, `migrations`, `seeders`, `config/config.json` relative to the project root) — but those folders actually live under `src/`. Running plain `npx sequelize-cli` commands from the root will fail to find them. Either add a `.sequelizerc` pointing at the `src/` paths, or pass `--config`, `--migrations-path`, `--seeders-path`, and `--models-path` flags explicitly when running CLI commands.
+   > **Note:** There is no `.sequelizerc` in this project, so `sequelize-cli` needs explicit path flags to find `src/`:
+   > ```
+   > npx sequelize-cli db:migrate --config src/config/config.json --migrations-path src/migrations --models-path src/models
+   > ```
 
 4. **Run the server in dev mode** (auto-restarts on file changes via nodemon):
    ```
    npm run dev
    ```
-   You should see:
-   ```
-   Server is running on port 3000
-   Hello to port 3000
-   ```
+   You should see `Server is running on port 3000` in the console and `app.log`.
 
 ## API
 
-All routes are mounted under `/api/v1`.
+All routes are mounted under `/api/v1`. Interactive, always-up-to-date docs (with request/response schemas and a "try it out" console) are served at **`/api-docs`** once the server is running.
 
-| Method | Endpoint               | Description                                             |
-|--------|------------------------|-----------------------------------------------------------|
-| GET    | `/api/v1/info`         | Health check — returns `{ success: true, message: "API is live" }` |
-| POST   | `/api/v1/auth/register`| Register a new user                                     |
-| POST   | `/api/v1/auth/login`   | Log in, returns a JWT                                    |
-| POST   | `/api/v1/airplanes`    | Create an airplane — requires `Authorization: Bearer <token>` for an admin user |
+| Method | Endpoint                  | Auth              | Description |
+|--------|----------------------------|-------------------|--------------|
+| GET    | `/api/v1/info`             | —                 | Health check |
+| POST   | `/api/v1/auth/register`    | —                 | Register a new user |
+| POST   | `/api/v1/auth/login`       | —                 | Log in, returns a JWT |
+| POST   | `/api/v1/airplanes`        | admin             | Create an airplane |
+| POST   | `/api/v1/cities`           | admin             | Create a city |
+| GET    | `/api/v1/cities`           | —                 | List cities |
+| GET    | `/api/v1/cities/:id`       | —                 | Get a city |
+| POST   | `/api/v1/airports`         | admin             | Create an airport |
+| GET    | `/api/v1/airports`         | —                 | List airports |
+| GET    | `/api/v1/airports/:id`     | —                 | Get an airport |
+| POST   | `/api/v1/flights`          | admin             | Create a flight |
+| GET    | `/api/v1/flights`          | —                 | List flights |
+| GET    | `/api/v1/flights/:id`      | —                 | Get a flight |
+| POST   | `/api/v1/bookings`         | any logged-in user | Book seats on a flight |
+| GET    | `/api/v1/bookings/me`      | any logged-in user | List your own bookings |
+| GET    | `/api/v1/bookings`         | admin             | List all bookings |
+
+Admin-gated routes require `Authorization: Bearer <token>` for a user with `role: "admin"`. There is no admin-creation endpoint — `/auth/register` always creates a `role: "user"` account; promote one manually via `UPDATE Users SET role='admin' WHERE email='...';`.
 
 ## Environment variables
 
@@ -127,17 +156,4 @@ See `.env.example` for a template. Database credentials are configured separatel
 
 ## Logging
 
-Winston logs to both the console and `app.log` (gitignored, regenerated on each run). The `Logger` export from `src/config` is currently commented out in `src/index.js` — uncomment it to log server startup events.
-
-## Using this as a scaffold
-
-This repo can be reused as a starting point for future Express + Sequelize projects:
-
-```
-git clone https://github.com/juchi6/Airline-Booking-API.git new-project-name
-cd new-project-name
-rm -rf .git
-git init
-```
-
-This gives you the full folder structure with a clean git history. Note that as this repo evolves into the real Movie Booking API, its `main` branch will accumulate business-specific code — if you want a permanently generic scaffold, tag the current clean state (e.g. `git tag scaffold-v1`) and clone/branch from that tag instead of `main`.
+Winston logs to both the console and `app.log` (gitignored, regenerated on each run). HTTP request logs (via `morgan`, combined format) are piped into the same Winston pipeline under the `HTTP` label.
